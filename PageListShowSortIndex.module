@@ -1,0 +1,128 @@
+<?php
+
+	/**
+	 * PageListShowSortIndex
+	 * @author Georgios Pavlakoudis "greg-ms"
+	 *
+	 * ProcessWire 2.x
+	 * Copyright (C) 2010 by Ryan Cramer
+	 * Licensed under GNU/GPL v2, see LICENSE.TXT
+	 *
+	 * http://www.processwire.com
+	 * http://www.ryancramer.com
+	 *
+	 */
+
+	class PageListShowSortIndex extends WireData implements Module, ConfigurableModule {
+
+		public static function getModuleInfo() {
+			return array(
+				'title' => 'Show Sort Index in Pages Tree',
+				'version' => 100,
+				'summary' => 'Prepends the Sort Index to the Pages Tree',
+				'href' => 'https://github.com/greg-ms/ProcessWire-PageListShowSortIndex',
+				'author' => 'greg-ms',
+				'singular' => true,
+				'autoload' => true
+			);
+		}
+
+		/**
+		 * Set default Data as Properties
+		 */
+
+		public function __construct() {
+			foreach(self::getDefaultData() as $key => $value) {
+				$this->$key = $value;
+			}
+		}
+
+		/**
+		 * Initialize and set Hook
+		 */
+
+		public function init() {
+			if($this->hasPermission()) {
+				$this->addHookAfter('ProcessPageListRender::getPageLabel', $this, 'addSortIndex');
+			}
+		}
+
+		/**
+		 * From PWs Boilerplate
+		 * @return array
+		 */
+
+		static public function getDefaultData() {
+			return array(
+				'sortindex_page_ids' => array(),
+				'sortindex_roles' => array(),
+			);
+		}
+
+		/**
+		 * Construct the Backend Configuration
+		 * @param array $data
+		 * @return InputfieldWrapper
+		 */
+
+		static public function getModuleConfigInputfields(array $data) {
+			$fields = new InputfieldWrapper();
+			$modules = wire('modules');
+			$data = array_merge(self::getDefaultData(), $data);
+
+			//-------
+
+			$field = $modules->get('InputfieldAsmSelect');
+			$field->label = __('Delimit roles');
+			$field->description = __('Specify the roles that are allowed to see the sort index');
+			$field->name = 'sortindex_roles';
+			$field->value = $data['sortindex_roles'];
+			$roles = array();
+
+			foreach(wire('roles') as $role) {
+				$roles[$role->name] = $role->name;
+			}
+
+			$field->addOptions($roles);
+			$fields->append($field);
+
+			//-------
+
+			$field = $modules->get('InputfieldPageListSelectMultiple');
+			$field->label = __('Specify Paths');
+			$field->description = __('Show sort index only in children of specified pages');
+			$field->name = 'sortindex_page_ids';
+			$field->value = $data['sortindex_page_ids'];
+			$fields->append($field);
+
+			return $fields;
+		}
+
+		/**
+		 * Validate if the User has the Permission to see the Sort Index
+		 * @return bool
+		 */
+
+		private function hasPermission() {
+			if(empty($this->sortindex_roles)) return true;
+
+			foreach($this->user->get('roles') as $role) {
+				if(in_array($role->name, $this->sortindex_roles)) return true;
+			}
+
+			return false;
+		}
+
+		/**
+		 * Adds the Sort Index itself to the Pages Tree
+		 * @param $event
+		 */
+
+		public function addSortIndex($event) {
+			$page = $event->arguments('page');
+			
+			if(in_array($page->parent->id, $this->sortindex_page_ids) || empty($this->sortindex_page_ids)) {
+				$event->return =  ($page->sort + 1) . '. ' . $event->return;
+			}
+		}
+	}
